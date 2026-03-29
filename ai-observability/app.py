@@ -344,6 +344,22 @@ async def ui() -> str:
             <p class="meta">POST /ai/logql</p>
             <pre id="logqlResult">Awaiting request...</pre>
         </div>
+
+        <div class="card">
+            <h3>Reconciliation</h3>
+            <p style="font-size:13px;color:#4b5563;margin-top:0;">Cross-service payment flow check — finds gaps between initiation, router, and handler.</p>
+            <div class="row">
+                <div>
+                    <label>Hours</label>
+                    <input id="reconcileHours" type="number" value="1" min="1" max="168" />
+                </div>
+                <div style="display:flex;align-items:flex-end;">
+                    <button onclick="runReconcile()">Run /reconcile</button>
+                </div>
+            </div>
+            <p class="meta">GET /reconcile?hours=N</p>
+            <pre id="reconcileResult">Awaiting request...</pre>
+        </div>
     </div>
 
     <script>
@@ -395,6 +411,19 @@ async def ui() -> str:
                 resultEl.textContent = JSON.stringify(out, null, 2);
             } catch (err) {
                 resultEl.textContent = JSON.stringify({ ok: false, status: 0, data: String(err) }, null, 2);
+            }
+        }
+
+        async function runReconcile() {
+            const resultEl = document.getElementById('reconcileResult');
+            resultEl.textContent = 'Running...';
+            try {
+                const hours = Number(document.getElementById('reconcileHours').value || 1);
+                const res = await fetch(`/reconcile?hours=${hours}`, { signal: AbortSignal.timeout(30000) });
+                const data = await res.json();
+                resultEl.textContent = JSON.stringify(data, null, 2);
+            } catch (err) {
+                resultEl.textContent = String(err);
             }
         }
 
@@ -605,14 +634,35 @@ async def reconcile(hours: int = Query(1, ge=1, le=168)) -> dict[str, Any]:
     start_ns = hours_ago_ns(hours)
     end_ns = now_ns()
 
-    initiation_events = await query_loki(
-        '{service="payment-initiation-service"} |= "paymentId="', start_ns, end_ns, limit=1200
+    init_ack_events = await query_loki(
+        '{service="payment-initiation-service"} |= "Kafka broker ACK confirmed"',
+        start_ns,
+        end_ns,
+        limit=2000,
     )
-    router_events = await query_loki(
-        '{service="payment-router"} |= "paymentId="', start_ns, end_ns, limit=1200
+    init_status_events = await query_loki(
+        '{service="payment-initiation-service"} |= "PAIN 002 status updated"',
+        start_ns,
+        end_ns,
+        limit=2000,
     )
-    handler_events = await query_loki(
-        '{service="instant-payment-handler"} |= "paymentId="', start_ns, end_ns, limit=1200
+    router_routed_events = await query_loki(
+        '{service="payment-router"} |= "Payment routed successfully"',
+        start_ns,
+        end_ns,
+        limit=2000,
+    )
+    router_rejected_events = await query_loki(
+        '{service="payment-router"} |= "Payment rejected"',
+        start_ns,
+        end_ns,
+        limit=2000,
+    )
+    handler_published_events = await query_loki(
+        '{service="instant-payment-handler"} |= "PAIN 002 published"',
+        start_ns,
+        end_ns,
+        limit=2000,
     )
 
     init_published = set()
@@ -622,37 +672,40 @@ async def reconcile(hours: int = Query(1, ge=1, le=168)) -> dict[str, Any]:
     handler_published = set()
     init_status_updated = set()
 
-    for e in initiation_events:
+    for e in init_ack_events:
         pid = extract_payment_id(e["line"])
         if not pid:
             continue
-        l = e["line"].lower()
-        if "broker ack confirmed" in l:
-            init_published.add(pid)
-        if "pain 002 status updated" in l:
-            init_status_updated.add(pid)
+        init_published.add(pid)
 
-    for e in router_events:
+    for e in init_status_events:
         pid = extract_payment_id(e["line"])
         if not pid:
             continue
-        l = e["line"].lower()
-        if "payment routed successfully" in l or "payment rejected" in l:
-            router_processed.add(pid)
-        if "payment routed successfully" in l:
-            ptype = (extract_payment_type(e["line"]) or "").lower()
-            if "instant" in ptype:
-                router_processed_instant.add(pid)
-            else:
-                router_processed_non_instant.add(pid)
+        init_status_updated.add(pid)
 
-    for e in handler_events:
+    for e in router_routed_events:
         pid = extract_payment_id(e["line"])
         if not pid:
             continue
-        l = e["line"].lower()
-        if "pain 002 published" in l:
-            handler_published.add(pid)
+        router_processed.add(pid)
+        ptype = (extract_payment_type(e["line"]) or "").lower()
+        if "instant" in ptype:
+            router_processed_instant.add(pid)
+        else:
+            router_processed_non_instant.add(pid)
+
+    for e in router_rejected_events:
+        pid = extract_payment_id(e["line"])
+        if not pid:
+            continue
+        router_processed.add(pid)
+
+    for e in handler_published_events:
+        pid = extract_payment_id(e["line"])
+        if not pid:
+            continue
+        handler_published.add(pid)
 
     missing_in_router = sorted(init_published - router_processed)
     # Handler is for instant rail only; ACH/non-instant routes are expected to be absent in handler logs.
