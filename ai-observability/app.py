@@ -33,6 +33,10 @@ def now_ns() -> int:
     return int(time.time() * 1_000_000_000)
 
 
+def seconds_ago_ns(seconds: int) -> int:
+    return now_ns() - (seconds * 1_000_000_000)
+
+
 def hours_ago_ns(hours: int) -> int:
     t = datetime.now(timezone.utc) - timedelta(hours=hours)
     return int(t.timestamp() * 1_000_000_000)
@@ -153,6 +157,29 @@ def build_rule_based_summary(events: list[dict[str, Any]]) -> str:
         f"Top Stages: {stage_summary or 'n/a'}. "
         f"Recent Evidence: {evidence}"
     )
+
+
+async def ingestion_lag_hint(payment_id: str | None) -> str | None:
+    if not payment_id:
+        return None
+
+    try:
+        recent_activity = await query_loki(
+            '{job="payment-services"} |= "paymentId="',
+            seconds_ago_ns(120),
+            now_ns(),
+            limit=80,
+        )
+    except Exception:
+        return "note: unable to verify log ingestion health at the moment."
+
+    if recent_activity:
+        return (
+            "note: this payment may be very recent and log ingestion can lag by 15-60s; "
+            "retry shortly."
+        )
+
+    return "note: no recent payment logs are being ingested; check Promtail/Loki status."
 
 
 async def summarize_with_ollama(payment_id: str, events: list[dict[str, Any]]) -> str:
@@ -522,6 +549,11 @@ async def ai_ask(req: AiAskRequest) -> dict[str, Any]:
     all_events.sort(key=lambda x: x["ts_ns"])
     context = format_timeline(all_events, max_events=req.maxEvents)
     fallback_answer = build_rule_based_summary(all_events)
+    if not all_events and req.paymentId:
+        hint = await ingestion_lag_hint(req.paymentId)
+        if hint:
+            fallback_answer = f"{fallback_answer} | {hint}"
+
     if req.useModel:
         try:
             answer = await asyncio.wait_for(

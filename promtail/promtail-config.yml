@@ -7,6 +7,14 @@ positions:
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
+    batchwait: 500ms
+    batchsize: 524288
+    timeout: 10s
+    backoff_config:
+      min_period: 500ms
+      max_period: 5s
+      max_retries: 20
+    drop_rate_limited_batches: false
 
 scrape_configs:
   - job_name: payment-initiation-service
