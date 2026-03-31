@@ -1,0 +1,493 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.1.0" },
+    { "type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0" },
+    { "type": "datasource", "id": "yesoreyeram-infinity-datasource", "name": "Infinity", "version": "2.0.0" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "bargauge", "name": "Bar gauge", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "logs", "name": "Logs", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Reconcilement dashboard — tracks payment counts across initiation → router → handler and highlights gaps.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Reconciliation Counts (via AI API)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Missing in Router",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "missingInRouter", "text": "missingInRouter", "type": "number" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Missing in Handler",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "missingInHandler", "text": "missingInHandler", "type": "number" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Missing Status Update",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "missingStatusUpdate", "text": "missingStatusUpdate", "type": "number" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Initiation Published",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "initiationPublished", "text": "initiationPublished", "type": "number" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Router Processed",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "routerProcessed", "text": "routerProcessed", "type": "number" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Handler Published",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "handlerPublished", "text": "handlerPublished", "type": "number" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Pipeline Flow — Bar Gauge",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Tracks how many payments made it through each stage of the pipeline.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short",
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 6 },
+      "id": 10,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient", "valueMode": "color", "showUnfilled": true },
+      "title": "Pipeline Stage Counts",
+      "type": "bargauge",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [
+            { "selector": "initiationPublished", "text": "1-Initiation Published", "type": "number" },
+            { "selector": "routerProcessed", "text": "2-Router Processed", "type": "number" },
+            { "selector": "routerProcessedInstant", "text": "3-Router (Instant)", "type": "number" },
+            { "selector": "routerProcessedNonInstant", "text": "4-Router (Non-Instant)", "type": "number" },
+            { "selector": "handlerPublished", "text": "5-Handler Published", "type": "number" },
+            { "selector": "initiationStatusUpdated", "text": "6-Status Updated", "type": "number" }
+          ],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Gaps in the pipeline that need investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "short",
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 6 },
+      "id": 11,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "lcd", "valueMode": "color", "showUnfilled": true },
+      "title": "Reconciliation Gaps",
+      "type": "bargauge",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/summary?hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [
+            { "selector": "missingInRouter", "text": "Missing in Router", "type": "number" },
+            { "selector": "missingInHandler", "text": "Missing in Handler", "type": "number" },
+            { "selector": "missingStatusUpdate", "text": "Missing Status Update", "type": "number" }
+          ],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "Payment Volume Over Time (Loki)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Rate of payments initiated, routed, and handler-published per minute.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 15 },
+      "id": 20,
+      "options": { "tooltip": { "mode": "multi", "sort": "none" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Payment Events Rate (per min)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "Initiated",
+          "expr": "sum(rate({service=\"payment-initiation-service\"} |= \"Kafka broker ACK confirmed\" [1m]))",
+          "legendFormat": "Initiated"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "Routed",
+          "expr": "sum(rate({service=\"payment-router\"} |= \"Payment routed successfully\" [1m]))",
+          "legendFormat": "Routed"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "HandlerPublished",
+          "expr": "sum(rate({service=\"instant-payment-handler\"} |= \"PAIN 002 published\" [1m]))",
+          "legendFormat": "Handler Published"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "StatusUpdated",
+          "expr": "sum(rate({service=\"payment-initiation-service\"} |= \"PAIN 002 status updated\" [1m]))",
+          "legendFormat": "Status Updated"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Payments rejected or errored — spikes indicate routing issues.",
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 20 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
+      "id": 21,
+      "options": { "tooltip": { "mode": "single" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Rejection Rate (per min)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "Rejected",
+          "expr": "sum(rate({service=\"payment-router\"} |= \"Payment rejected\" [1m]))",
+          "legendFormat": "Rejected"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 103,
+      "title": "Missing Payment ID Samples",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Payment IDs that were initiated but never seen in router logs (up to 20 samples).",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "paymentId" }, "properties": [{ "id": "custom.width", "value": 280 }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "id": 30,
+      "options": { "footer": { "show": false }, "showHeader": true, "cellHeight": "sm" },
+      "title": "IDs Missing in Router",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/samples?kind=missingInRouter&hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "paymentId", "text": "paymentId", "type": "string" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Instant payments that reached the router but were never seen in handler logs (up to 20 samples).",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "paymentId" }, "properties": [{ "id": "custom.width", "value": 280 }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "id": 31,
+      "options": { "footer": { "show": false }, "showHeader": true, "cellHeight": "sm" },
+      "title": "IDs Missing in Handler",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/samples?kind=missingInHandler&hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "paymentId", "text": "paymentId", "type": "string" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Payments that were handler-published but never got final status update back to initiation (up to 20 samples).",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "paymentId" }, "properties": [{ "id": "custom.width", "value": 280 }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "id": 32,
+      "options": { "footer": { "show": false }, "showHeader": true, "cellHeight": "sm" },
+      "title": "IDs Missing Status Update",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/reconcile/samples?kind=missingStatusUpdate&hours=${reconcileHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "paymentId", "text": "paymentId", "type": "string" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 104,
+      "title": "Live Payment Log Stream",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 33 },
+      "id": 40,
+      "options": { "showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLogMessage": false, "prettifyLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none", "sortOrder": "Descending" },
+      "title": "Live Log Stream — All Services",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "A",
+          "expr": "{job=\"payment-services\"} |= \"paymentId=PAY\"",
+          "legendFormat": ""
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["payment", "reconciliation"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "1", "value": "1" },
+        "hide": 0,
+        "name": "reconcileHours",
+        "label": "Lookback (hours)",
+        "options": [
+          { "selected": true, "text": "1", "value": "1" },
+          { "selected": false, "text": "3", "value": "3" },
+          { "selected": false, "text": "6", "value": "6" },
+          { "selected": false, "text": "12", "value": "12" },
+          { "selected": false, "text": "24", "value": "24" }
+        ],
+        "query": "1,3,6,12,24",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Payment Reconciliation",
+  "uid": "payment-reconciliation",
+  "version": 1
+}

@@ -2,8 +2,19 @@ apiVersion: 1
 
 datasources:
   - name: Loki
+    uid: loki
     type: loki
     access: proxy
     url: http://loki:3100
     isDefault: true
-    editable: false
+    editable: true
+
+  - name: AI-Observability
+    uid: infinity
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    editable: true
+    jsonData:
+      allowedHosts:
+        - http://ai-observability:8000
+

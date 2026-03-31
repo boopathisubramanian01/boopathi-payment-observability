@@ -17,6 +17,13 @@ LOKI_URL = os.getenv("LOKI_URL", "http://localhost:3100")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
+RECONCILE_CACHE_TTL_SECONDS = 15
+PAYMENT_TRACE_CACHE_TTL_SECONDS = 15
+_reconcile_cache: dict[int, tuple[float, dict[str, Any]]] = {}
+_payment_trace_cache: dict[tuple[str, int, bool], tuple[float, dict[str, Any]]] = {}
+_reconcile_lock = asyncio.Lock()
+_payment_trace_lock = asyncio.Lock()
+
 SERVICES = [
     "payment-initiation-service",
     "payment-router",
@@ -50,10 +57,20 @@ async def query_loki(query: str, start_ns: int, end_ns: int, limit: int = 500) -
         "limit": str(limit),
         "direction": "forward",
     }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(f"{LOKI_URL}/loki/api/v1/query_range", params=params)
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"Loki query failed: {resp.text}")
+    retryable_statuses = {429, 502, 503, 504}
+    backoff_seconds = (0.2, 0.5, 1.0)
+    resp = None
+    for attempt, backoff in enumerate(backoff_seconds, start=1):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(f"{LOKI_URL}/loki/api/v1/query_range", params=params)
+        if resp.status_code == 200:
+            break
+        if resp.status_code not in retryable_statuses or attempt == len(backoff_seconds):
+            raise HTTPException(status_code=502, detail=f"Loki query failed: {resp.text}")
+        await asyncio.sleep(backoff)
+
+    if resp is None or resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Loki query failed: no response")
 
     data = resp.json()
     results = data.get("data", {}).get("result", [])
@@ -157,6 +174,189 @@ def build_rule_based_summary(events: list[dict[str, Any]]) -> str:
         f"Top Stages: {stage_summary or 'n/a'}. "
         f"Recent Evidence: {evidence}"
     )
+
+
+def latest_payment_type(events: list[dict[str, Any]]) -> str | None:
+    for event in reversed(events):
+        payment_type = extract_payment_type(event["line"])
+        if payment_type:
+            return payment_type
+    return None
+
+
+async def build_payment_trace_result(payment_id: str, hours: int, use_model: bool = False) -> dict[str, Any]:
+    start_ns = hours_ago_ns(hours)
+    end_ns = now_ns()
+
+    all_events: list[dict[str, Any]] = []
+    for service in SERVICES:
+        query = f'{{service="{service}"}} |= "paymentId={payment_id}"'
+        events = await query_loki(query, start_ns, end_ns, limit=250)
+        all_events.extend(events)
+
+    all_events.sort(key=lambda x: x["ts_ns"])
+
+    latest_status = None
+    for event in reversed(all_events):
+        status = extract_status(event["line"])
+        if status:
+            latest_status = status
+            break
+
+    if use_model:
+        ai_summary = await summarize_with_ollama(payment_id, all_events)
+        if ai_summary.startswith("AI summary unavailable"):
+            ai_summary = f"{build_rule_based_summary(all_events)} | note: model fallback used."
+    else:
+        ai_summary = build_rule_based_summary(all_events)
+
+    return {
+        "paymentId": payment_id,
+        "timeWindowHours": hours,
+        "eventCount": len(all_events),
+        "latestStatus": latest_status,
+        "currentService": all_events[-1]["service"] if all_events else None,
+        "paymentType": latest_payment_type(all_events),
+        "aiSummary": ai_summary,
+        "events": all_events[-60:],
+    }
+
+
+async def get_cached_payment_trace(payment_id: str, hours: int, use_model: bool = False) -> dict[str, Any]:
+    cache_key = (payment_id, hours, use_model)
+    now = time.monotonic()
+    cached = _payment_trace_cache.get(cache_key)
+    if cached and now - cached[0] < PAYMENT_TRACE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    async with _payment_trace_lock:
+        cached = _payment_trace_cache.get(cache_key)
+        now = time.monotonic()
+        if cached and now - cached[0] < PAYMENT_TRACE_CACHE_TTL_SECONDS:
+            return cached[1]
+
+        result = await build_payment_trace_result(payment_id, hours, use_model)
+        _payment_trace_cache[cache_key] = (time.monotonic(), result)
+        return result
+
+
+async def build_reconcile_result(hours: int) -> dict[str, Any]:
+    start_ns = hours_ago_ns(hours)
+    end_ns = now_ns()
+
+    init_ack_events = await query_loki(
+        '{service="payment-initiation-service"} |= "Kafka broker ACK confirmed"',
+        start_ns,
+        end_ns,
+        limit=2000,
+    )
+    init_status_events = await query_loki(
+        '{service="payment-initiation-service"} |= "PAIN 002 status updated"',
+        start_ns,
+        end_ns,
+        limit=2000,
+    )
+    router_routed_events = await query_loki(
+        '{service="payment-router"} |= "Payment routed successfully"',
+        start_ns,
+        end_ns,
+        limit=2000,
+    )
+    router_rejected_events = await query_loki(
+        '{service="payment-router"} |= "Payment rejected"',
+        start_ns,
+        end_ns,
+        limit=2000,
+    )
+    handler_published_events = await query_loki(
+        '{service="instant-payment-handler"} |= "PAIN 002 published"',
+        start_ns,
+        end_ns,
+        limit=2000,
+    )
+
+    init_published = set()
+    router_processed = set()
+    router_processed_instant = set()
+    router_processed_non_instant = set()
+    handler_published = set()
+    init_status_updated = set()
+
+    for event in init_ack_events:
+        payment_id = extract_payment_id(event["line"])
+        if not payment_id:
+            continue
+        init_published.add(payment_id)
+
+    for event in init_status_events:
+        payment_id = extract_payment_id(event["line"])
+        if not payment_id:
+            continue
+        init_status_updated.add(payment_id)
+
+    for event in router_routed_events:
+        payment_id = extract_payment_id(event["line"])
+        if not payment_id:
+            continue
+        router_processed.add(payment_id)
+        payment_type = (extract_payment_type(event["line"]) or "").lower()
+        if "instant" in payment_type:
+            router_processed_instant.add(payment_id)
+        else:
+            router_processed_non_instant.add(payment_id)
+
+    for event in router_rejected_events:
+        payment_id = extract_payment_id(event["line"])
+        if not payment_id:
+            continue
+        router_processed.add(payment_id)
+
+    for event in handler_published_events:
+        payment_id = extract_payment_id(event["line"])
+        if not payment_id:
+            continue
+        handler_published.add(payment_id)
+
+    missing_in_router = sorted(init_published - router_processed)
+    missing_in_handler = sorted(router_processed_instant - handler_published)
+    missing_status_update = sorted(handler_published - init_status_updated)
+
+    return {
+        "timeWindowHours": hours,
+        "counts": {
+            "initiationPublished": len(init_published),
+            "routerProcessed": len(router_processed),
+            "routerProcessedInstant": len(router_processed_instant),
+            "routerProcessedNonInstant": len(router_processed_non_instant),
+            "handlerPublished": len(handler_published),
+            "initiationStatusUpdated": len(init_status_updated),
+            "missingInRouter": len(missing_in_router),
+            "missingInHandler": len(missing_in_handler),
+            "missingStatusUpdate": len(missing_status_update),
+        },
+        "samples": {
+            "missingInRouter": missing_in_router[:20],
+            "missingInHandler": missing_in_handler[:20],
+            "missingStatusUpdate": missing_status_update[:20],
+        },
+    }
+
+
+async def get_cached_reconcile(hours: int) -> dict[str, Any]:
+    now = time.monotonic()
+    cached = _reconcile_cache.get(hours)
+    if cached and now - cached[0] < RECONCILE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    async with _reconcile_lock:
+        cached = _reconcile_cache.get(hours)
+        now = time.monotonic()
+        if cached and now - cached[0] < RECONCILE_CACHE_TTL_SECONDS:
+            return cached[1]
+
+        result = await build_reconcile_result(hours)
+        _reconcile_cache[hours] = (time.monotonic(), result)
+        return result
 
 
 async def ingestion_lag_hint(payment_id: str | None) -> str | None:
@@ -490,38 +690,28 @@ async def health() -> dict[str, str]:
 async def payment_trace(
     paymentId: str = Query(..., min_length=3),
     hours: int = Query(24, ge=1, le=168),
+    useModel: bool = Query(False),
 ) -> dict[str, Any]:
-    start_ns = hours_ago_ns(hours)
-    end_ns = now_ns()
+    return await get_cached_payment_trace(paymentId, hours, useModel)
 
-    all_events: list[dict[str, Any]] = []
-    for service in SERVICES:
-        query = f'{{service="{service}"}} |= "paymentId={paymentId}"'
-        events = await query_loki(query, start_ns, end_ns, limit=250)
-        all_events.extend(events)
 
-    all_events.sort(key=lambda x: x["ts_ns"])
-
-    latest_status = None
-    for event in reversed(all_events):
-        s = extract_status(event["line"])
-        if s:
-            latest_status = s
-            break
-
-    ai_summary = await summarize_with_ollama(paymentId, all_events)
-    if ai_summary.startswith("AI summary unavailable"):
-        ai_summary = f"{build_rule_based_summary(all_events)} | note: model fallback used."
-
-    return {
-        "paymentId": paymentId,
-        "timeWindowHours": hours,
-        "eventCount": len(all_events),
-        "latestStatus": latest_status,
-        "currentService": all_events[-1]["service"] if all_events else None,
-        "aiSummary": ai_summary,
-        "events": all_events[-60:],
-    }
+@app.get("/grafana/payment-trace/summary")
+async def grafana_payment_trace_summary(
+    paymentId: str = Query(..., min_length=3),
+    hours: int = Query(24, ge=1, le=168),
+) -> list[dict[str, Any]]:
+    trace = await get_cached_payment_trace(paymentId, hours, False)
+    return [
+        {
+            "paymentId": trace["paymentId"],
+            "timeWindowHours": trace["timeWindowHours"],
+            "eventCount": trace["eventCount"],
+            "latestStatus": trace["latestStatus"],
+            "currentService": trace["currentService"],
+            "paymentType": trace["paymentType"],
+            "aiSummary": trace["aiSummary"],
+        }
+    ]
 
 
 @app.post("/ai/ask")
@@ -663,103 +853,21 @@ async def component_metrics(hours: int = Query(1, ge=1, le=168)) -> dict[str, An
 
 @app.get("/reconcile")
 async def reconcile(hours: int = Query(1, ge=1, le=168)) -> dict[str, Any]:
-    start_ns = hours_ago_ns(hours)
-    end_ns = now_ns()
+    return await get_cached_reconcile(hours)
 
-    init_ack_events = await query_loki(
-        '{service="payment-initiation-service"} |= "Kafka broker ACK confirmed"',
-        start_ns,
-        end_ns,
-        limit=2000,
-    )
-    init_status_events = await query_loki(
-        '{service="payment-initiation-service"} |= "PAIN 002 status updated"',
-        start_ns,
-        end_ns,
-        limit=2000,
-    )
-    router_routed_events = await query_loki(
-        '{service="payment-router"} |= "Payment routed successfully"',
-        start_ns,
-        end_ns,
-        limit=2000,
-    )
-    router_rejected_events = await query_loki(
-        '{service="payment-router"} |= "Payment rejected"',
-        start_ns,
-        end_ns,
-        limit=2000,
-    )
-    handler_published_events = await query_loki(
-        '{service="instant-payment-handler"} |= "PAIN 002 published"',
-        start_ns,
-        end_ns,
-        limit=2000,
-    )
 
-    init_published = set()
-    router_processed = set()
-    router_processed_instant = set()
-    router_processed_non_instant = set()
-    handler_published = set()
-    init_status_updated = set()
+@app.get("/grafana/reconcile/summary")
+async def grafana_reconcile_summary(hours: int = Query(1, ge=1, le=168)) -> list[dict[str, Any]]:
+    data = await get_cached_reconcile(hours)
+    row = dict(data["counts"])
+    row["timeWindowHours"] = data["timeWindowHours"]
+    return [row]
 
-    for e in init_ack_events:
-        pid = extract_payment_id(e["line"])
-        if not pid:
-            continue
-        init_published.add(pid)
 
-    for e in init_status_events:
-        pid = extract_payment_id(e["line"])
-        if not pid:
-            continue
-        init_status_updated.add(pid)
-
-    for e in router_routed_events:
-        pid = extract_payment_id(e["line"])
-        if not pid:
-            continue
-        router_processed.add(pid)
-        ptype = (extract_payment_type(e["line"]) or "").lower()
-        if "instant" in ptype:
-            router_processed_instant.add(pid)
-        else:
-            router_processed_non_instant.add(pid)
-
-    for e in router_rejected_events:
-        pid = extract_payment_id(e["line"])
-        if not pid:
-            continue
-        router_processed.add(pid)
-
-    for e in handler_published_events:
-        pid = extract_payment_id(e["line"])
-        if not pid:
-            continue
-        handler_published.add(pid)
-
-    missing_in_router = sorted(init_published - router_processed)
-    # Handler is for instant rail only; ACH/non-instant routes are expected to be absent in handler logs.
-    missing_in_handler = sorted(router_processed_instant - handler_published)
-    missing_status_update = sorted(handler_published - init_status_updated)
-
-    return {
-        "timeWindowHours": hours,
-        "counts": {
-            "initiationPublished": len(init_published),
-            "routerProcessed": len(router_processed),
-            "routerProcessedInstant": len(router_processed_instant),
-            "routerProcessedNonInstant": len(router_processed_non_instant),
-            "handlerPublished": len(handler_published),
-            "initiationStatusUpdated": len(init_status_updated),
-            "missingInRouter": len(missing_in_router),
-            "missingInHandler": len(missing_in_handler),
-            "missingStatusUpdate": len(missing_status_update),
-        },
-        "samples": {
-            "missingInRouter": missing_in_router[:20],
-            "missingInHandler": missing_in_handler[:20],
-            "missingStatusUpdate": missing_status_update[:20],
-        },
-    }
+@app.get("/grafana/reconcile/samples")
+async def grafana_reconcile_samples(
+    kind: str = Query(..., pattern="^(missingInRouter|missingInHandler|missingStatusUpdate)$"),
+    hours: int = Query(1, ge=1, le=168),
+) -> list[dict[str, str]]:
+    data = await get_cached_reconcile(hours)
+    return [{"paymentId": payment_id} for payment_id in data["samples"].get(kind, [])]

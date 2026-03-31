@@ -1,0 +1,42 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+{
+  "manifestVersion": "2.0.0",
+  "signatureType": "grafana",
+  "signedByOrg": "grafana",
+  "signedByOrgName": "Grafana Labs",
+  "plugin": "yesoreyeram-infinity-datasource",
+  "version": "3.7.4",
+  "time": 1773319697696,
+  "keyId": "7e4d0c6a708866e7",
+  "files": {
+    "gpx_infinity_linux_arm64": "b8b6b4b51e954f777e0bc216ee87d8f0641e4e3c5c2c03eff08562c54dbde003",
+    "module.js.map": "8d0412c7c306be783fdc4f11ed6a9de052e75cb42b5bf0f61a2c93467550574e",
+    "README.md": "4a99cb657e9b9ba6976edf42480d79c083709e5c5ea2b96965c56c318f64bf0e",
+    "plugin.json": "eb36f5ae9d440c5e7266cf5afcb4d5a52b09b2f5da403ea99b34b35aa713b458",
+    "img/homepage-bg.svg": "97ec32b2c542bcb63b7fa7659e42a876a5b9ec00aef7a486f2dc41b83d7d9eb8",
+    "img/slide-series.png": "f7d523c39f9d4567974c37432f047e4e8944cb92dc2c9a4424757ce5e54dc3a7",
+    "img/slide-features.png": "58aba3b2f2d73ee99945cba9746463f0039d8afb5366ed8d42db62145b914d0f",
+    "img/oauth-2-sm.png": "9945bb307d5545369d50381acc97d48b4a98433831f14e99eb839f0970a91258",
+    "img/slide-variables.png": "8ed0cd7b1ac00bd2c7fa6e72c513b678c39ba7d63030f06e8695cb1d352e3b34",
+    "img/slide-rest-api.png": "cf72349768e0ccf19a856d86e97c8e67dcdadfcee49e73ae5acbe781c3ae0c79",
+    "img/aws.jpg": "e682ccc794708fd3eb32a3fb5e2bcccd8ff3b54f30eba2086fd1b28a82020d81",
+    "img/icon.svg": "e498b00e1cc3c9e8b65a2b8320b7d170c6da61d424fe5f3f3fdf9963204449ae",
+    "module.js.LICENSE.txt": "2602ac20ba6f82cafdf6938df7ef7f2c28321fad2526976d343f652374b1c505",
+    "module.js": "7d1e8b4fe85f41e24d7e216759ad2c1f9054997e3c4bd5405a0182b97d680c95",
+    "CHANGELOG.md": "e5af9e31b23d9afa53dfe3beaadfc8bcd305187e2e560077ed0f07be5a247593",
+    "go_plugin_build_manifest": "3595c9b99ab998ec4fbb39525708c84dd5efe875afa132cae14df82ecc4c6c9a",
+    "LICENSE": "85fb2c20b586ef9dc00ee5c41140e1cd59fdded9a0b24a9054b04e9f0f6b2977"
+  }
+}
+-----BEGIN PGP SIGNATURE-----
+
+wsA/BAETCgBtBYJpsrYRCRB+TQxqcIhm50UUAAAAAAAcACBzYWx0QG5vdGF0
+aW9ucy5vcGVucGdwanMub3JnL2XieP7uBJvX/befMOkOmQNOz3rrLYB+xYga
+fSznl/8WIQTzOyW2kQdOhGNlcPN+TQxqcIhm5wAANfECCQGCutxXaEgjf7wu
+tVf0iCTvVE3IDT69jevZ5oJptQL8KPLiY2IIjQxFdPtzJUt+9ut71AA9qRXo
+kCNkT6kn7BHPsAIJAZSnn5R1n+lMDmolM5pSTx9l6qZLO1Pu54yjD0Tq8Yj8
+neoRGKQxqheZvOOOYJPr//NSe6+TdYX/4XfyyeY1rCn8
+=BaLI
+-----END PGP SIGNATURE-----

@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: payment-dashboards
+    orgId: 1
+    folder: Payment Observability
+    folderUid: payment-observability
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,366 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.1.0" },
+    { "type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0" },
+    { "type": "datasource", "id": "yesoreyeram-infinity-datasource", "name": "Infinity", "version": "2.0.0" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "text", "name": "Text", "version": "" },
+    { "type": "panel", "id": "logs", "name": "Logs", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Per-payment-ID journey tracker: status, event count, AI narrative, and full log stream.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 200,
+      "title": "Payment Status Summary (AI API)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Total log events seen for this payment across all services.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 201,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Event Count",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/payment-trace/summary?paymentId=${paymentId}&hours=${lookbackHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "eventCount", "text": "eventCount", "type": "number" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Latest ISO 20022 status code for this payment.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "mappings": [
+            { "options": { "ACSC": { "color": "green", "index": 0, "text": "ACSC ✅" }, "ACCP": { "color": "green", "index": 1, "text": "ACCP ✅" }, "ACTC": { "color": "green", "index": 2, "text": "ACTC ✅" }, "RCVD": { "color": "yellow", "index": 3, "text": "RCVD ⏳" }, "PDNG": { "color": "blue", "index": 4, "text": "PDNG ⏳" }, "RJCT": { "color": "red", "index": 5, "text": "RJCT ❌" } }, "type": "value" }
+          ],
+          "custom": { "hideFrom": { "tooltip": false, "viz": false, "legend": false } }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 1 },
+      "id": 202,
+      "options": { "reduceOptions": { "calcs": ["last"], "fields": "/^latestStatus$/", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Latest Status",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/payment-trace/summary?paymentId=${paymentId}&hours=${lookbackHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "latestStatus", "text": "latestStatus", "type": "string" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Which service last logged this payment.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] },
+          "custom": { "hideFrom": { "tooltip": false, "viz": false, "legend": false } }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 7, "x": 9, "y": 1 },
+      "id": 203,
+      "options": { "reduceOptions": { "calcs": ["last"], "fields": "/^currentService$/", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Current Service",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/payment-trace/summary?paymentId=${paymentId}&hours=${lookbackHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "currentService", "text": "currentService", "type": "string" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "Payment type: Instant Payment or ACH/non-instant.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] },
+          "custom": { "hideFrom": { "tooltip": false, "viz": false, "legend": false } }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 1 },
+      "id": 204,
+      "options": { "reduceOptions": { "calcs": ["last"], "fields": "/^paymentType$/", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "title": "Payment Type",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/payment-trace/summary?paymentId=${paymentId}&hours=${lookbackHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "paymentType", "text": "paymentType", "type": "string" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 210,
+      "title": "AI Narrative Answer",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "description": "AI-generated narrative for this payment from the /payment/trace endpoint.",
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" }, "unit": "string" },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 6 },
+      "id": 211,
+      "options": { "footer": { "show": false }, "showHeader": false, "cellHeight": "auto" },
+      "title": "AI Answer — Payment Journey Summary",
+      "type": "table",
+      "transformations": [
+        { "id": "organize", "options": { "renameByName": { "aiSummary": "AI Summary" } } }
+      ],
+      "targets": [
+        {
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://ai-observability:8000/grafana/payment-trace/summary?paymentId=${paymentId}&hours=${lookbackHours}",
+          "url_options": { "method": "GET" },
+          "columns": [{ "selector": "aiSummary", "text": "aiSummary", "type": "string" }],
+          "parser": "backend",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 220,
+      "title": "Event Stage Breakdown",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "All log lines matching this payment ID across all three services.",
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Time" }, "properties": [{ "id": "custom.width", "value": 190 }] },
+          { "matcher": { "id": "byName", "options": "labels" }, "properties": [{ "id": "custom.width", "value": 200 }] }
+        ]
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 14 },
+      "id": 221,
+      "options": { "footer": { "show": false }, "showHeader": true, "cellHeight": "sm" },
+      "title": "Events per Stage — Initiation",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "A",
+          "expr": "count_over_time({service=\"payment-initiation-service\"} |= \"paymentId=${paymentId}\" [${lookbackHours}h])",
+          "legendFormat": "Initiation Events",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Time" }, "properties": [{ "id": "custom.width", "value": 190 }] }
+        ]
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 14 },
+      "id": 222,
+      "options": { "footer": { "show": false }, "showHeader": true, "cellHeight": "sm" },
+      "title": "Events per Stage — Router",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "A",
+          "expr": "count_over_time({service=\"payment-router\"} |= \"paymentId=${paymentId}\" [${lookbackHours}h])",
+          "legendFormat": "Router Events",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Time" }, "properties": [{ "id": "custom.width", "value": 190 }] }
+        ]
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 14 },
+      "id": 223,
+      "options": { "footer": { "show": false }, "showHeader": true, "cellHeight": "sm" },
+      "title": "Events per Stage — Handler",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "A",
+          "expr": "count_over_time({service=\"instant-payment-handler\"} |= \"paymentId=${paymentId}\" [${lookbackHours}h])",
+          "legendFormat": "Handler Events",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "id": 230,
+      "title": "Full Log Stream for Payment",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 20 },
+      "id": 231,
+      "options": { "showTime": true, "showLabels": true, "showCommonLabels": false, "wrapLogMessage": true, "prettifyLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none", "sortOrder": "Ascending" },
+      "title": "Payment Log Timeline — ${paymentId}",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "A",
+          "expr": "{job=\"payment-services\"} |= \"paymentId=${paymentId}\"",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 240,
+      "title": "Payment Processing Throughput",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Rate of all payment log events per service over the selected time window.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 8 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 33 },
+      "id": 241,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Per-Service Processing Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "Initiation",
+          "expr": "sum(rate({service=\"payment-initiation-service\"} |= \"paymentId=PAY\" [1m]))",
+          "legendFormat": "payment-initiation-service"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "Router",
+          "expr": "sum(rate({service=\"payment-router\"} |= \"paymentId=PAY\" [1m]))",
+          "legendFormat": "payment-router"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "refId": "Handler",
+          "expr": "sum(rate({service=\"instant-payment-handler\"} |= \"paymentId=PAY\" [1m]))",
+          "legendFormat": "instant-payment-handler"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["payment", "journey", "ai"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "PAY-LOAD-920222755-9926", "value": "PAY-LOAD-920222755-9926" },
+        "hide": 0,
+        "name": "paymentId",
+        "label": "Payment ID",
+        "query": "",
+        "type": "textbox",
+        "description": "Enter the paymentId to inspect (e.g. PAY-20260327-205)"
+      },
+      {
+        "current": { "selected": false, "text": "24", "value": "24" },
+        "hide": 0,
+        "name": "lookbackHours",
+        "label": "Lookback (hours)",
+        "options": [
+          { "selected": false, "text": "1", "value": "1" },
+          { "selected": false, "text": "6", "value": "6" },
+          { "selected": false, "text": "12", "value": "12" },
+          { "selected": true, "text": "24", "value": "24" },
+          { "selected": false, "text": "48", "value": "48" }
+        ],
+        "query": "1,6,12,24,48",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Payment Journey Tracker",
+  "uid": "payment-journey",
+  "version": 1
+}
